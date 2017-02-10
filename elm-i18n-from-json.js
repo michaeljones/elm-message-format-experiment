@@ -18,26 +18,38 @@ function toToken(key) {
     return "Tr" + key.split('.').map(capitalise).join('');
 }
 
+function toArgs(value) {
+    const parsed = parse(value).filter(entry => typeof entry !== 'string')
+    const count = parsed.length;
+    return parsed.map(entry => entry.arg);
+}
+
 const tokens = Object.entries(flatJson)
     .map(([key, value]) => {
-        return toToken(key);
+        const rawArgs = toArgs(value);
+        const args = rawArgs.length ? ' ' + rawArgs.map(() => 'String').join(' ') : '';
+        return toToken(key) + args;
     });
+
 
 const strings = Object.entries(flatJson)
     .map(([key, value]) => {
         const token = toToken(key);
-        const parsed = parse(value).filter(entry => typeof entry !== 'string')
-        const count = parsed.length;
-        const rawArgs = parsed.map(entry => entry.arg).join(' ');
-        const args = rawArgs.length ? ' ' + rawArgs : '';
+        const rawArgs = toArgs(value);
+        const count = rawArgs.length ? rawArgs.length : '';
+        const args = rawArgs.length ? ' ' + rawArgs.join(' ') : '';
 
-        return `        ${token}${args} ->\n            "${value}"`;
+        return `        ${token}${args} ->\n            MessageFormat.format${count} "${value}"${args}`;
     });
 
 const output = `module Translations exposing (..)
 
+import MessageFormat
+
+
 type Translation
     = ${tokens.join('\n    | ')}
+
 
 translate : Translation -> String
 translate token =
