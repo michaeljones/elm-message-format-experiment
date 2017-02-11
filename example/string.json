@@ -1,0 +1,10 @@
+{
+    "text" : {
+        "subText": "Hello, World!",
+        "anotherSubText": "Goodbye, World!"
+    },
+    "topLevelString": "This string is top level",
+    "withArgs": {
+        "simple": "So {wow}"
+    }
+}

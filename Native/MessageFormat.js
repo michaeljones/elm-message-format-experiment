@@ -41,6 +41,3 @@ var make = function make(elm) {
         'format4': format4,
     };
 };
-
-Elm.Native.MessageFormat = {};
-Elm.Native.MessageFormat.make = make;
