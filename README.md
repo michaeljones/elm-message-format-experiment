@@ -55,7 +55,7 @@ Compile these strings to an elm module using the `elm-i18n-from-json` script. Pa
 as the first argument to the script:
 
 ```bash
-node elm-i18n-from-json elm-message-format.json > Translations.elm
+node elm-i18n-from-json generate elm-message-format.json Translations.elm
 ```
 
 Which produces a file with this format:
