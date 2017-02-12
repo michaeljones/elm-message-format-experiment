@@ -115,6 +115,36 @@ ${strings.join('\n\n')}
     return output;
 }
 
+function generateAction(args) {
+    if (args.length !== 3) {
+        console.error('Usage: elm-i18n-from-json generate <config> <output>');
+        process.exit(1);
+    }
+    const config = args[1];
+    const outputPath = args[2];
+    const output = generate(config);
+    fs.writeFileSync(outputPath, output);
+}
+
+function diffAction(args) {
+    if (args.length !== 3) {
+        console.error('Usage: elm-i18n-from-json diff <config> <output>');
+        process.exit(1);
+    }
+    const configPath = args[1];
+    const output = generate(configPath);
+
+    const resultPath = args[2];
+    const resultContent = fs.readFileSync(resultPath, 'utf8');
+
+    if (output !== resultContent) {
+        console.error('Differences detected');
+        process.exit(1);
+    }
+
+    process.exit(0);
+}
+
 function main(args) {
 
     if (args.length === 0) {
@@ -126,14 +156,11 @@ function main(args) {
 
     switch (action) {
         case 'generate':
-            if (args.length !== 3) {
-                console.error('Usage: elm-i18n-from-json generate <config> <output>');
-                process.exit(1);
-            }
-            const config = args[1];
-            const outputPath = args[2];
-            const output = generate(config);
-            fs.writeFileSync(outputPath, output);
+            generateAction(args);
+            break;
+
+        case 'diff':
+            diffAction(args);
             break;
 
         default:
