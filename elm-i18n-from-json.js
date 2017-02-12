@@ -3,16 +3,40 @@ const fs = require('fs');
 const flatten = require('flat');
 const parse = require('messageformat-parser').parse;
 
-const language = process.argv[2];
-const contents = fs.readFileSync(process.argv[3]);
-
-const json = JSON.parse(contents);
-
-const flatJson = flatten(json);
-
 function capitalise(word) {
     return word[0].toUpperCase() + word.slice(1);
 }
+
+const configContents = fs.readFileSync(process.argv[2]);
+
+const configJson = JSON.parse(configContents);
+
+const languages = Object.entries(configJson.languages)
+    .map(([language, filename]) => {
+
+        const contents = fs.readFileSync(filename);
+
+        const json = JSON.parse(contents);
+
+        const flatJson = flatten(json);
+
+        return [language, flatJson];
+    });
+
+const languageCodes = Object.keys(configJson.languages);
+
+const languagePairs = languageCodes
+    .map(code => {
+        return [code, capitalise(code).replace('-', '_')];
+    });
+
+
+const languageTypes = languagePairs.map(entry => entry[1]);
+
+const languageCases = languagePairs
+    .map(([code, type]) => {
+        return `        ${type} ->\n            "${code}"`;
+    });
 
 function toToken(key) {
     return "Tr" + key.split('.').map(capitalise).join('');
@@ -24,7 +48,7 @@ function toArgs(value) {
     return parsed.map(entry => entry.arg);
 }
 
-const tokens = Object.entries(flatJson)
+const tokens = Object.entries(languages[0][1])
     .map(([key, value]) => {
         const rawArgs = toArgs(value);
         let args = '';
@@ -36,17 +60,28 @@ const tokens = Object.entries(flatJson)
     });
 
 
-const strings = Object.entries(flatJson)
-    .map(([key, value]) => {
-        const token = toToken(key);
-        const rawArgs = toArgs(value);
-        const method = rawArgs.length ? 'formatWithArgs' : 'format';
-        let args = '';
-        if (rawArgs.length) {
-            args = ' args';
-        }
+const strings = languages
+    .map(([code, json]) => {
 
-        return `            ${token}${args} ->\n                MessageFormat.${method} languageString "${value}"${args}`;
+        const languageStrings = Object.entries(json)
+            .map(([key, value]) => {
+                const token = toToken(key);
+                const rawArgs = toArgs(value);
+                const method = rawArgs.length ? 'formatWithArgs' : 'format';
+                let args = '';
+                if (rawArgs.length) {
+                    args = ' args';
+                }
+
+                return `                ${token}${args} ->\n                    MessageFormat.${method} "${code}" "${value}"${args}`;
+            });
+
+        const languageType = capitalise(code).replace('-', '_');
+
+        return (
+`        ${languageType} ->
+            case token of
+${languageStrings.join('\n\n')}`);
     });
 
 const output = `module Translation exposing (..)
@@ -59,29 +94,19 @@ type Translation
 
 
 type Language
-    = En_GB
-    | Pt_PT
+    = ${languageTypes.join('\n    | ')}
 
 
 languageCode : Language -> String
 languageCode language =
     case language of
-        En_GB ->
-            "en-GB"
-
-        Pt_PT ->
-            "pt-PT"
+${languageCases.join('\n\n')}
 
 
 translate : Language -> Translation -> String
 translate language token =
-    let
-        languageString =
-            languageCode language
-    in
-        case token of
+    case language of
 ${strings.join('\n\n')}
-
 `;
 
 console.log(output);
