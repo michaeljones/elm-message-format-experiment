@@ -39,10 +39,10 @@ const strings = Object.entries(flatJson)
         const count = rawArgs.length ? rawArgs.length : '';
         const args = rawArgs.length ? ' ' + rawArgs.join(' ') : '';
 
-        return `        ${token}${args} ->\n            MessageFormat.format${count} "${value}"${args}`;
+        return `            ${token}${args} ->\n                MessageFormat.format${count} languageString "${value}"${args}`;
     });
 
-const output = `module Translations exposing (..)
+const output = `module Translation exposing (..)
 
 import MessageFormat
 
@@ -51,9 +51,28 @@ type Translation
     = ${tokens.join('\n    | ')}
 
 
-translate : Translation -> String
-translate token =
-    case token of
+type Language
+    = En_GB
+    | Pt_PT
+
+
+languageCode : Language -> String
+languageCode language =
+    case language of
+        En_GB ->
+            "en-GB"
+
+        Pt_PT ->
+            "pt-PT"
+
+
+translate : Language -> Translation -> String
+translate language token =
+    let
+        languageString =
+            languageCode language
+    in
+        case token of
 ${strings.join('\n\n')}
 
 `;

@@ -10,5 +10,5 @@ main =
             [ text "Translating 'WithArgsSimple' string" ]
         , div
             []
-            [ text (translate (TrWithArgsSimple "much wow")) ]
+            [ text (translate En_GB (TrWithArgsSimple "much wow")) ]
         ]
