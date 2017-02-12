@@ -27,7 +27,11 @@ function toArgs(value) {
 const tokens = Object.entries(flatJson)
     .map(([key, value]) => {
         const rawArgs = toArgs(value);
-        const args = rawArgs.length ? ' ' + rawArgs.map(() => 'String').join(' ') : '';
+        let args = '';
+        if (rawArgs.length) {
+            const defs = rawArgs.map(name => `${name} : String`).join(', ');
+            args = ` { ${defs} }`;
+        }
         return toToken(key) + args;
     });
 
@@ -36,10 +40,13 @@ const strings = Object.entries(flatJson)
     .map(([key, value]) => {
         const token = toToken(key);
         const rawArgs = toArgs(value);
-        const count = rawArgs.length ? rawArgs.length : '';
-        const args = rawArgs.length ? ' ' + rawArgs.join(' ') : '';
+        const method = rawArgs.length ? 'formatWithArgs' : 'format';
+        let args = '';
+        if (rawArgs.length) {
+            args = ' args';
+        }
 
-        return `            ${token}${args} ->\n                MessageFormat.format${count} languageString "${value}"${args}`;
+        return `            ${token}${args} ->\n                MessageFormat.${method} languageString "${value}"${args}`;
     });
 
 const output = `module Translation exposing (..)
