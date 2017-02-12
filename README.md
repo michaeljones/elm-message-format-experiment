@@ -17,20 +17,15 @@ I am not an experience elm developer. Perhaps there is a much better solution to
 
 ## Status
 
-Well, it doesn't work.
+It seems to work but I'm no expert so tread carefully. I'd love feedback and guidance though.
 
-- The `Native.MessageFormat` implementation is possible incorrect as I get a runtime error in the
-  browser. I followed the instructions on the [eeue56/take-home wiki](https://github.com/eeue56/take-home/wiki/Writing-Native)
-  but I may have made a mistake or they might not apply to Elm 0.18.0.
-
-- It doesn't current handle different languages, but hope that'll be relatively simple once it is
-  actually working. We'd create different modules or some two level case statement that chooses
-  first based on the language and then the string & arguments.
+- Currently each message is individually compiled by the `messageformat` package every time you use
+  it. It would be worth caching these in the javascript of the native module.
 
 
 ## Workflow
 
-Manage your strings in a json file with nested objects & ICU syntax:
+Manage your strings in json files with nested objects & ICU syntax, one file per language:
 
 ```json
 {
@@ -45,17 +40,28 @@ Manage your strings in a json file with nested objects & ICU syntax:
 }
 ```
 
-Compile these strings to an elm module using the `elm-i18n-from-json` script:
+Create another config file to map between languages and the different string files you have:
+
+```json
+{
+    "languages": {
+        "en-gb": "strings.en-gb.json",
+        "en-us": "strings.en-us.json"
+    }
+}
+```
+
+Compile these strings to an elm module using the `elm-i18n-from-json` script. Pass the config file
+as the first argument to the script:
 
 ```bash
-node elm-i18n-from-json en-GB string.json > Translations.elm
+node elm-i18n-from-json elm-message-format.json > Translations.elm
 ```
 
 Which produces a file with this format:
 
 ```elm
-module Translations exposing (..)
-
+module Translation exposing (..)
 
 import MessageFormat
 
@@ -64,23 +70,54 @@ type Translation
     = TrTextSubText
     | TrTextAnotherSubText
     | TrTopLevelString
-    | TrWithArgsSimple String
+    | TrWithArgsSimple { wow : String }
 
 
-translate : Translation -> String
-translate token =
-    case token of
-        TrTextSubText ->
-            MessageFormat.format "Hello, World!"
+type Language
+    = En_gb
+    | En_us
 
-        TrTextAnotherSubText ->
-            MessageFormat.format "Goodbye, World!"
 
-        TrTopLevelString ->
-            MessageFormat.format "This string is top level"
+languageCode : Language -> String
+languageCode language =
+    case language of
+        En_gb ->
+            "en-gb"
 
-        TrWithArgsSimple wow ->
-            MessageFormat.format1 "So {wow}"
+        En_us ->
+            "en-us"
+
+
+translate : Language -> Translation -> String
+translate language token =
+    case language of
+        En_gb ->
+            case token of
+                TrTextSubText ->
+                    MessageFormat.format "en-gb" "Hello, World!"
+
+                TrTextAnotherSubText ->
+                    MessageFormat.format "en-gb" "Goodbye, World!"
+
+                TrTopLevelString ->
+                    MessageFormat.format "en-gb" "This string is top level"
+
+                TrWithArgsSimple args ->
+                    MessageFormat.formatWithArgs "en-gb" "So {wow}" args
+
+        En_us ->
+            case token of
+                TrTextSubText ->
+                    MessageFormat.format "en-us" "Hello, World!"
+
+                TrTextAnotherSubText ->
+                    MessageFormat.format "en-us" "Goodbye, World!"
+
+                TrTopLevelString ->
+                    MessageFormat.format "en-us" "This string is top level"
+
+                TrWithArgsSimple args ->
+                    MessageFormat.formatWithArgs "en-us" "So {wow}" args
 ```
 
 This relies on the `MessageFormat` module that relies on `Native.MessageFormat` which uses the npm
@@ -101,6 +138,6 @@ main =
             [ text "Translating 'WithArgsSimple' string" ]
         , div
             []
-            [ text (translate (TrWithArgsSimple "much wow")) ]
+            [ text (translate En_gb (TrWithArgsSimple "much wow")) ]
         ]
 ```
