@@ -133,10 +133,12 @@ ${strings.join('\n\n')}
     return output;
 }
 
+
 function generateAction(config, outputPath, options) {
     const output = generate(config, options);
     fs.writeFileSync(outputPath, output);
 }
+
 
 function diffAction(configPath, resultPath, options) {
     const output = generate(configPath, options);
@@ -150,6 +152,57 @@ function diffAction(configPath, resultPath, options) {
     process.exit(0);
 }
 
+
+function validateAction(configPath) {
+
+    const configContents = fs.readFileSync(configPath);
+
+    const configJson = JSON.parse(configContents);
+
+    const pairs = _.toPairs(configJson.languages)
+        .map(([language, filename]) => {
+
+            const contents = fs.readFileSync(filename);
+
+            const json = JSON.parse(contents);
+
+            const flatJson = flatten(json);
+
+            const keys = _.keys(flatJson);
+
+            return [filename, keys];
+        });
+
+    const firstFilename = pairs[0][0];
+    const firstKeys = pairs[0][1];
+
+    const results = _(pairs)
+        .drop(1)
+        .map(([filename, keys]) => {
+            const diffA = keys.filter(key => !_.includes(firstKeys, key));
+            const diffB = firstKeys.filter(key => !_.includes(keys, key));
+
+            if (diffA.length) {
+                console.log(`The following keys are present in ${filename} and not ${firstFilename}`);
+                console.log(diffA.join(', '));
+            }
+
+            if (diffB.length) {
+                console.log(`The following keys are present in ${firstFilename} and not ${filename}`);
+                console.log(diffB.join(', '));
+            }
+
+            return diffA.length > 0 || diffB.length > 0;
+        })
+        .filter(value => value)
+        .value();
+
+    if (results.length) {
+        process.exit(1);
+    }
+}
+
+
 function main(args) {
 
     program
@@ -161,6 +214,10 @@ function main(args) {
         .command("diff <config> <output>")
         .option("-s, --settings <name>", "Which config to use")
         .action(diffAction);
+
+    program
+        .command("validate <config>")
+        .action(validateAction);
 
     program.parse(args);
 }
