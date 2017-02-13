@@ -141,3 +141,17 @@ main =
             [ text (translate En_gb (TrWithArgsSimple "much wow")) ]
         ]
 ```
+
+## Other Actions
+
+The `elm-i18n-from-json` also provides the following commands:
+
+- `diff <config> <elm file>`: compares the output generated from the config file with the current
+  contents of the elm file and reports on whether they differ. This could be a useful addition to a
+  test suite to help check that all files are up to date. Though ideally it would be exposed via a
+  module with an API.
+
+- `validate <config>`: Checks that all files referenced by the config file have the same keys in
+  them to help prevent drift between languages. Again, ideally implemented as a test suite. Could be
+  taken further to also compile the messages and check that the number of arguments is consistent
+  across languages as well.
