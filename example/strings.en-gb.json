@@ -6,5 +6,9 @@
     "topLevelString": "This string is top level",
     "withArgs": {
         "simple": "So {wow}"
+    },
+    "myapp": {
+        "title": "My App Title",
+        "desc": "My App Desc"
     }
 }

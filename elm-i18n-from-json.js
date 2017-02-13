@@ -1,20 +1,24 @@
 
 const fs = require('fs');
+
 const flatten = require('flat');
 const parse = require('messageformat-parser').parse;
+const program = require('commander');
+const _ = require('lodash');
+
 
 function capitalise(word) {
     return word[0].toUpperCase() + word.slice(1);
 }
 
 
-function generate(configPath) {
+function generate(configPath, options) {
 
     const configContents = fs.readFileSync(configPath);
 
     const configJson = JSON.parse(configContents);
 
-    const languages = Object.entries(configJson.languages)
+    const languages = _.toPairs(configJson.languages)
         .map(([language, filename]) => {
 
             const contents = fs.readFileSync(filename);
@@ -23,10 +27,24 @@ function generate(configPath) {
 
             const flatJson = flatten(json);
 
-            return [language, flatJson];
+            let filtered = flatJson;
+            if (options.settings) {
+
+                const filters = configJson.settings[options.settings].filters;
+
+                filtered = _(filtered)
+                    .toPairs()
+                    .filter((key, value) => {
+                        return filters.some(filter => _.startsWith(key, filter));
+                    })
+                    .fromPairs()
+                    .value();
+            }
+
+            return [language, filtered];
         });
 
-    const languageCodes = Object.keys(configJson.languages);
+    const languageCodes = _.keys(configJson.languages);
 
     const languagePairs = languageCodes
         .map(code => {
@@ -51,7 +69,7 @@ function generate(configPath) {
         return parsed.map(entry => entry.arg);
     }
 
-    const tokens = Object.entries(languages[0][1])
+    const tokens = _.toPairs(languages[0][1])
         .map(([key, value]) => {
             const rawArgs = toArgs(value);
             let args = '';
@@ -66,7 +84,7 @@ function generate(configPath) {
     const strings = languages
         .map(([code, json]) => {
 
-            const languageStrings = Object.entries(json)
+            const languageStrings = _.toPairs(json)
                 .map(([key, value]) => {
                     const token = toToken(key);
                     const rawArgs = toArgs(value);
@@ -115,26 +133,13 @@ ${strings.join('\n\n')}
     return output;
 }
 
-function generateAction(args) {
-    if (args.length !== 3) {
-        console.error('Usage: elm-i18n-from-json generate <config> <output>');
-        process.exit(1);
-    }
-    const config = args[1];
-    const outputPath = args[2];
-    const output = generate(config);
+function generateAction(config, outputPath, options) {
+    const output = generate(config, options);
     fs.writeFileSync(outputPath, output);
 }
 
-function diffAction(args) {
-    if (args.length !== 3) {
-        console.error('Usage: elm-i18n-from-json diff <config> <output>');
-        process.exit(1);
-    }
-    const configPath = args[1];
-    const output = generate(configPath);
-
-    const resultPath = args[2];
+function diffAction(configPath, resultPath, options) {
+    const output = generate(configPath, options);
     const resultContent = fs.readFileSync(resultPath, 'utf8');
 
     if (output !== resultContent) {
@@ -147,26 +152,17 @@ function diffAction(args) {
 
 function main(args) {
 
-    if (args.length === 0) {
-        console.error('Usage: elm-i18n-from-json <action> [args...]');
-        process.exit(1);
-    }
+    program
+        .command("generate <config> <output>")
+        .option("-s, --settings <name>", "Which config to use")
+        .action(generateAction);
 
-    const action = args[0];
+    program
+        .command("diff <config> <output>")
+        .option("-s, --settings <name>", "Which config to use")
+        .action(diffAction);
 
-    switch (action) {
-        case 'generate':
-            generateAction(args);
-            break;
-
-        case 'diff':
-            diffAction(args);
-            break;
-
-        default:
-            console.error('Unrecognised action: ' + action);
-            process.exit(1);
-    }
+    program.parse(args);
 }
 
-main(process.argv.splice(2));
+main(process.argv);
