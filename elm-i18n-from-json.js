@@ -12,52 +12,13 @@ function capitalise(word) {
 }
 
 
-function generate(configPath, options) {
+function generate(filepath, options) {
 
-    const configContents = fs.readFileSync(configPath);
+    const fileContents = fs.readFileSync(filepath);
 
-    const configJson = JSON.parse(configContents);
+    const fileJson = JSON.parse(fileContents);
 
-    const languages = _.toPairs(configJson.languages)
-        .map(([language, filename]) => {
-
-            const contents = fs.readFileSync(filename);
-
-            const json = JSON.parse(contents);
-
-            const flatJson = flatten(json);
-
-            let filtered = flatJson;
-            if (options.settings) {
-
-                const filters = configJson.settings[options.settings].filters;
-
-                filtered = _(filtered)
-                    .toPairs()
-                    .filter((key, value) => {
-                        return filters.some(filter => _.startsWith(key, filter));
-                    })
-                    .fromPairs()
-                    .value();
-            }
-
-            return [language, filtered];
-        });
-
-    const languageCodes = _.keys(configJson.languages);
-
-    const languagePairs = languageCodes
-        .map(code => {
-            return [code, capitalise(code).replace('-', '_')];
-        });
-
-
-    const languageTypes = languagePairs.map(entry => entry[1]);
-
-    const languageCases = languagePairs
-        .map(([code, type]) => {
-            return `        ${type} ->\n            "${code}"`;
-        });
+    const flatJson = flatten(fileJson);
 
     function toToken(key) {
         return "Tr" + key.split('.').map(capitalise).join('');
@@ -69,7 +30,7 @@ function generate(configPath, options) {
         return parsed.map(entry => entry.arg);
     }
 
-    const tokens = _.toPairs(languages[0][1])
+    const tokens = _.toPairs(flatJson)
         .map(([key, value]) => {
             const rawArgs = toArgs(value);
             let args = '';
@@ -81,32 +42,34 @@ function generate(configPath, options) {
         });
 
 
-    const strings = languages
-        .map(([code, json]) => {
+    const entries = _.toPairs(flatJson)
+        .map(([key, value]) => {
+            return key;
+        });
 
-            const languageStrings = _.toPairs(json)
-                .map(([key, value]) => {
-                    const token = toToken(key);
-                    const rawArgs = toArgs(value);
-                    const method = rawArgs.length ? 'formatWithArgs' : 'format';
-                    let args = '';
-                    if (rawArgs.length) {
-                        args = ' args';
-                    }
+    const decodes = _.toPairs(flatJson)
+        .map(([key, value]) => {
+            return `        |> optional "${key}" string "${key}"`;
+        });
 
-                    return `                ${token}${args} ->\n                    MessageFormat.${method} "${code}" "${value}"${args}`;
-                });
+    const strings = _.toPairs(flatJson)
+        .map(([key, value]) => {
+            const token = toToken(key);
+            const rawArgs = toArgs(value);
+            const method = rawArgs.length ? 'formatWithArgs' : 'format';
+            const string = `language.${key}`;
+            let args = '';
+            if (rawArgs.length) {
+                args = ' args';
+            }
 
-            const languageType = capitalise(code).replace('-', '_');
-
-            return (
-`        ${languageType} ->
-            case token of
-${languageStrings.join('\n\n')}`);
+            return `        ${token}${args} ->\n            MessageFormat.${method} ${string} ${args}`;
         });
 
     const output = `module Translation exposing (..)
 
+import Json.Decode.Pipeline exposing (decode, optional)
+import Json.Decode
 import MessageFormat
 
 
@@ -114,20 +77,22 @@ type Translation
     = ${tokens.join('\n    | ')}
 
 
-type Language
-    = ${languageTypes.join('\n    | ')}
-
-
-languageCode : Language -> String
-languageCode language =
-    case language of
-${languageCases.join('\n\n')}
+type alias Language =
+    { ${entries.join(' : String\n    , ') + ' : String'}
+    }
 
 
 translate : Language -> Translation -> String
 translate language token =
     case language of
 ${strings.join('\n\n')}
+
+
+decodeLanguage : Json.Decode.Value -> Language
+decodeLanguage json =
+    decode Language
+${decodes.join('\n')}
+
 `;
 
     return output;
@@ -206,7 +171,7 @@ function validateAction(configPath) {
 function main(args) {
 
     program
-        .command("generate <config> <output>")
+        .command("generate <file> <output>")
         .option("-s, --settings <name>", "Which config to use")
         .action(generateAction);
 
