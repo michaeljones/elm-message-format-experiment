@@ -47,6 +47,11 @@ function generate(filepath, options) {
             return key;
         });
 
+    const defaults = _.toPairs(flatJson)
+        .map(([key, value]) => {
+            return `${key} = "${key}"`;
+        });
+
     const decodes = _.toPairs(flatJson)
         .map(([key, value]) => {
             return `        |> optional "${key}" string "${key}"`;
@@ -106,7 +111,7 @@ ${decodes.join('\n')}
 defaultLanguage : Language
 defaultLanguage =
     { code__ = ""
-    , ${entries.join(' = ""\n    , ') + ' = ""'}
+    , ${defaults.join('\n    , ')}
     }
 
 
