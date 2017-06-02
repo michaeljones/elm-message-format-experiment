@@ -57,19 +57,20 @@ function generate(filepath, options) {
             const token = toToken(key);
             const rawArgs = toArgs(value);
             const method = rawArgs.length ? 'formatWithArgs' : 'format';
-            const string = `language.${key}`;
+            const string = `strings.${key}`;
             let args = '';
             if (rawArgs.length) {
                 args = ' args';
             }
 
-            return `        ${token}${args} ->\n            MessageFormat.${method} ${string} ${args}`;
+            return `        ${token}${args} ->\n            MessageFormat.${method} strings.code__ ${string} ${args}`;
         });
 
     const output = `module Translation exposing (..)
 
 import Json.Decode.Pipeline exposing (decode, optional)
-import Json.Decode
+import Json.Decode exposing (decodeValue, string)
+import Html exposing (Html, text)
 import MessageFormat
 
 
@@ -78,20 +79,40 @@ type Translation
 
 
 type alias Language =
-    { ${entries.join(' : String\n    , ') + ' : String'}
+    { code__ : String
+    , ${entries.join(' : String\n    , ') + ' : String'}
     }
 
 
+
 translate : Language -> Translation -> String
-translate language token =
-    case language of
+translate strings token =
+    case token of
 ${strings.join('\n\n')}
 
 
 decodeLanguage : Json.Decode.Value -> Language
 decodeLanguage json =
+    decodeValue languageDecoder json |> Result.withDefault defaultLanguage
+
+
+languageDecoder : Json.Decode.Decoder Language
+languageDecoder =
     decode Language
+        |> optional "code__" string ""
 ${decodes.join('\n')}
+
+
+defaultLanguage : Language
+defaultLanguage =
+    { code__ = ""
+    , ${entries.join(' = ""\n    , ') + ' = ""'}
+    }
+
+
+trText : Language -> Translation -> Html msg
+trText strings slug =
+    text (translate strings slug)
 
 `;
 
