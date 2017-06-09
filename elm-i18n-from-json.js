@@ -133,6 +133,7 @@ trText strings slug =
 
 function generateAction(config, outputPath, options) {
     const output = generate(config, options);
+    console.log(`Writing to ${outputPath}`);
     fs.writeFileSync(outputPath, output);
 }
 
