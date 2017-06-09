@@ -12,6 +12,10 @@ function capitalise(word) {
 }
 
 
+function escape(key) {
+    return key === 'type' ? 'type_' : key;
+}
+
 function generate(filepath, options) {
 
     const fileContents = fs.readFileSync(filepath);
@@ -44,12 +48,13 @@ function generate(filepath, options) {
 
     const entries = _.toPairs(flatJson)
         .map(([key, value]) => {
-            return key;
+            return escape(key);
         });
 
     const defaults = _.toPairs(flatJson)
         .map(([key, value]) => {
-            return `${key} = "${key}"`;
+
+            return `${escape(key)} = "${key}"`;
         });
 
     const decodes = _.toPairs(flatJson)
@@ -62,7 +67,7 @@ function generate(filepath, options) {
             const token = toToken(key);
             const rawArgs = toArgs(value);
             const method = rawArgs.length ? 'formatWithArgs' : 'format';
-            const string = `strings.${key}`;
+            const string = `strings.${escape(key)}`;
             let args = '';
             if (rawArgs.length) {
                 args = ' args';
