@@ -76,7 +76,9 @@ function generate(filepath, options) {
             return `        ${token}${args} ->\n            MessageFormat.${method} strings.code__ ${string} ${args}`;
         });
 
-    const output = `module Translation exposing (..)
+    const moduleName = options.module || 'Translation';
+
+    const output = `module ${moduleName} exposing (..)
 
 import Json.Decode.Pipeline exposing (decode, optional)
 import Json.Decode exposing (decodeValue, string)
@@ -92,7 +94,6 @@ type alias Language =
     { code__ : String
     , ${entries.join(' : String\n    , ') + ' : String'}
     }
-
 
 
 translate : Language -> Translation -> String
@@ -204,6 +205,7 @@ function main(args) {
     program
         .command("generate <file> <output>")
         .option("-s, --settings <name>", "Which config to use")
+        .option("-m, --module <name>", "Name of generated module")
         .action(generateAction);
 
     program
