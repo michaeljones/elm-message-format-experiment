@@ -73,7 +73,7 @@ function generate(filepath, options) {
                 args = ' args';
             }
 
-            return `        ${token}${args} ->\n            MessageFormat.${method} strings.code__ ${string} ${args}`;
+            return `        ${token}${args} ->\n            MessageFormat.${method} strings.code__ ${string}${args}`;
         });
 
     const moduleName = options.module || 'Translation';
