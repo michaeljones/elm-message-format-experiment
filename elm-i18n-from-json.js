@@ -12,52 +12,27 @@ function capitalise(word) {
 }
 
 
-function generate(configPath, options) {
+function escape(key) {
+    return key === 'type' ? 'type_' : key;
+}
 
-    const configContents = fs.readFileSync(configPath);
+function generate(filepath, options) {
 
-    const configJson = JSON.parse(configContents);
+    const fileContents = fs.readFileSync(filepath);
 
-    const languages = _.toPairs(configJson.languages)
-        .map(([language, filename]) => {
+    let fileJson = JSON.parse(fileContents);
 
-            const contents = fs.readFileSync(filename);
+    if (options.context) {
+        fileJson = _(fileJson)
+            .toPairs()
+            .map(([key, value]) => {
+                return [key, value.value];
+            })
+            .fromPairs()
+            .value();
+    }
 
-            const json = JSON.parse(contents);
-
-            const flatJson = flatten(json);
-
-            let filtered = flatJson;
-            if (options.settings) {
-
-                const filters = configJson.settings[options.settings].filters;
-
-                filtered = _(filtered)
-                    .toPairs()
-                    .filter((key, value) => {
-                        return filters.some(filter => _.startsWith(key, filter));
-                    })
-                    .fromPairs()
-                    .value();
-            }
-
-            return [language, filtered];
-        });
-
-    const languageCodes = _.keys(configJson.languages);
-
-    const languagePairs = languageCodes
-        .map(code => {
-            return [code, capitalise(code).replace('-', '_')];
-        });
-
-
-    const languageTypes = languagePairs.map(entry => entry[1]);
-
-    const languageCases = languagePairs
-        .map(([code, type]) => {
-            return `        ${type} ->\n            "${code}"`;
-        });
+    const flatJson = flatten(fileJson);
 
     function toToken(key) {
         return "Tr" + key.split('.').map(capitalise).join('');
@@ -69,7 +44,7 @@ function generate(configPath, options) {
         return parsed.map(entry => entry.arg);
     }
 
-    const tokens = _.toPairs(languages[0][1])
+    const tokens = _.toPairs(flatJson)
         .map(([key, value]) => {
             const rawArgs = toArgs(value);
             let args = '';
@@ -81,32 +56,43 @@ function generate(configPath, options) {
         });
 
 
-    const strings = languages
-        .map(([code, json]) => {
-
-            const languageStrings = _.toPairs(json)
-                .map(([key, value]) => {
-                    const token = toToken(key);
-                    const rawArgs = toArgs(value);
-                    const method = rawArgs.length ? 'formatWithArgs' : 'format';
-                    let args = '';
-                    if (rawArgs.length) {
-                        args = ' args';
-                    }
-
-                    return `                ${token}${args} ->\n                    MessageFormat.${method} "${code}" "${value}"${args}`;
-                });
-
-            const languageType = capitalise(code).replace('-', '_');
-
-            return (
-`        ${languageType} ->
-            case token of
-${languageStrings.join('\n\n')}`);
+    const entries = _.toPairs(flatJson)
+        .map(([key, value]) => {
+            return escape(key);
         });
 
-    const output = `module Translation exposing (..)
+    const defaults = _.toPairs(flatJson)
+        .map(([key, value]) => {
 
+            return `${escape(key)} = "${key}"`;
+        });
+
+    const decodes = _.toPairs(flatJson)
+        .map(([key, value]) => {
+            return `        |> optional "${key}" string "${key}"`;
+        });
+
+    const strings = _.toPairs(flatJson)
+        .map(([key, value]) => {
+            const token = toToken(key);
+            const rawArgs = toArgs(value);
+            const method = rawArgs.length ? 'formatWithArgs' : 'format';
+            const string = `strings.${escape(key)}`;
+            let args = '';
+            if (rawArgs.length) {
+                args = ' args';
+            }
+
+            return `        ${token}${args} ->\n            MessageFormat.${method} strings.code__ ${string}${args}`;
+        });
+
+    const moduleName = options.module || 'Translation';
+
+    const output = `module ${moduleName} exposing (..)
+
+import Json.Decode.Pipeline exposing (decode, optional)
+import Json.Decode exposing (decodeValue, string)
+import Html exposing (Html, text)
 import MessageFormat
 
 
@@ -114,20 +100,41 @@ type Translation
     = ${tokens.join('\n    | ')}
 
 
-type Language
-    = ${languageTypes.join('\n    | ')}
-
-
-languageCode : Language -> String
-languageCode language =
-    case language of
-${languageCases.join('\n\n')}
+type alias Language =
+    { code__ : String
+    , ${entries.join(' : String\n    , ') + ' : String'}
+    }
 
 
 translate : Language -> Translation -> String
-translate language token =
-    case language of
+translate strings token =
+    case token of
 ${strings.join('\n\n')}
+
+
+decodeLanguage : Json.Decode.Value -> Language
+decodeLanguage json =
+    decodeValue languageDecoder json |> Result.withDefault defaultLanguage
+
+
+languageDecoder : Json.Decode.Decoder Language
+languageDecoder =
+    decode Language
+        |> optional "code__" string ""
+${decodes.join('\n')}
+
+
+defaultLanguage : Language
+defaultLanguage =
+    { code__ = ""
+    , ${defaults.join('\n    , ')}
+    }
+
+
+trText : Language -> Translation -> Html msg
+trText strings slug =
+    text (translate strings slug)
+
 `;
 
     return output;
@@ -136,6 +143,7 @@ ${strings.join('\n\n')}
 
 function generateAction(config, outputPath, options) {
     const output = generate(config, options);
+    console.log(`Writing to ${outputPath}`);
     fs.writeFileSync(outputPath, output);
 }
 
@@ -206,8 +214,10 @@ function validateAction(configPath) {
 function main(args) {
 
     program
-        .command("generate <config> <output>")
+        .command("generate <file> <output>")
         .option("-s, --settings <name>", "Which config to use")
+        .option("-m, --module <name>", "Name of generated module")
+        .option("-c, --context", "Uses the 'context' format for strings")
         .action(generateAction);
 
     program
