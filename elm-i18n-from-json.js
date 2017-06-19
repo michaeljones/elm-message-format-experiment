@@ -20,7 +20,17 @@ function generate(filepath, options) {
 
     const fileContents = fs.readFileSync(filepath);
 
-    const fileJson = JSON.parse(fileContents);
+    let fileJson = JSON.parse(fileContents);
+
+    if (options.context) {
+        fileJson = _(fileJson)
+            .toPairs()
+            .map(([key, value]) => {
+                return [key, value.value];
+            })
+            .fromPairs()
+            .value();
+    }
 
     const flatJson = flatten(fileJson);
 
@@ -207,6 +217,7 @@ function main(args) {
         .command("generate <file> <output>")
         .option("-s, --settings <name>", "Which config to use")
         .option("-m, --module <name>", "Name of generated module")
+        .option("-c, --context", "Uses the 'context' format for strings")
         .action(generateAction);
 
     program
