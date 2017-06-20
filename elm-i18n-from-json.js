@@ -134,7 +134,6 @@ defaultLanguage =
 trText : Language -> Translation -> Html msg
 trText strings slug =
     text (translate strings slug)
-
 `;
 
     return output;
