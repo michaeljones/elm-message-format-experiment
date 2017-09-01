@@ -66,6 +66,12 @@ function generate(filepath, options) {
             return `${escape(key)} = "${key}"`;
         });
 
+    const lookups = _.toPairs(flatJson)
+        .map(([key, value]) => {
+
+            return `${escape(key)} = ${toToken(key)}`;
+        });
+
     const decodes = _.toPairs(flatJson)
         .map(([key, value]) => {
             return `        |> optional "${key}" string "${key}"`;
@@ -121,6 +127,11 @@ languageDecoder =
     decode Language
         |> optional "code__" string ""
 ${decodes.join('\n')}
+
+
+languageLookup =
+    { ${lookups.join('\n    , ')}
+    }
 
 
 defaultLanguage : Language
