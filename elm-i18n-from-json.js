@@ -40,8 +40,7 @@ function generate(filepath, options) {
 
     function toArgs(value) {
         const parsed = parse(value).filter(entry => typeof entry !== 'string')
-        const count = parsed.length;
-        return parsed.map(entry => entry.arg);
+        return _.uniq(parsed.map(entry => entry.arg));
     }
 
     const tokens = _.toPairs(flatJson)
