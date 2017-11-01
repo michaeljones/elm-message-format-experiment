@@ -16,6 +16,18 @@ function escape(key) {
     return key === 'type' ? 'type_' : key;
 }
 
+function extractValue(entry) {
+    if (entry.value && typeof entry.value === 'string') {
+        return entry.value
+    }
+    return undefined
+}
+
+function dotToCaps(name) {
+    const fragments = name.split('.')
+    return fragments[0] + fragments.slice(1).map(capitalise).join('');
+}
+
 function generate(filepath, options) {
 
     const fileContents = fs.readFileSync(filepath);
@@ -23,13 +35,7 @@ function generate(filepath, options) {
     let fileJson = JSON.parse(fileContents);
 
     if (options.context) {
-        fileJson = _(fileJson)
-            .toPairs()
-            .map(([key, value]) => {
-                return [key, value.value];
-            })
-            .fromPairs()
-            .value();
+        fileJson = _.cloneDeepWith(fileJson, extractValue)
     }
 
     const flatJson = flatten(fileJson);
@@ -57,24 +63,31 @@ function generate(filepath, options) {
 
     const entries = _.toPairs(flatJson)
         .map(([key, value]) => {
-            return escape(key);
+            return dotToCaps(escape(key));
         });
 
     const defaults = _.toPairs(flatJson)
         .map(([key, value]) => {
 
-            return `${escape(key)} = "${key}"`;
+            return `${dotToCaps(escape(key))} = "${key}"`;
         });
 
     const lookups = _.toPairs(flatJson)
         .map(([key, value]) => {
 
-            return `${escape(key)} = ${toToken(key)}`;
+            return `${dotToCaps(escape(key))} = ${toToken(key)}`;
         });
 
     const decodes = _.toPairs(flatJson)
         .map(([key, value]) => {
-            return `        |> optional "${key}" string "${key}"`;
+            const hasDots = key.includes('.');
+            if (hasDots) {
+                const path = '[' + key.split('.').map(entry => `"${entry}"`).join(', ') + ']'
+                return `        |> optionalAt ${path} string "${key}"`;
+            }
+            else {
+                return `        |> optional "${key}" string "${key}"`;
+            }
         });
 
     const strings = _.toPairs(flatJson)
@@ -82,7 +95,7 @@ function generate(filepath, options) {
             const token = toToken(key);
             const rawArgs = toArgs(value);
             const method = rawArgs.length ? 'formatWithArgs' : 'format';
-            const string = `strings.${escape(key)}`;
+            const string = `strings.${dotToCaps(escape(key))}`;
             let args = '';
             if (rawArgs.length) {
                 args = ' args';
@@ -95,7 +108,7 @@ function generate(filepath, options) {
 
     const output = `module ${moduleName} exposing (..)
 
-import Json.Decode.Pipeline exposing (decode, optional)
+import Json.Decode.Pipeline exposing (decode, optional, optionalAt)
 import Json.Decode exposing (decodeValue, string)
 import Html exposing (Html, text)
 import MessageFormat
