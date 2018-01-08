@@ -40,22 +40,11 @@ Manage your strings in json files with nested objects & ICU syntax, one file per
 }
 ```
 
-Create another config file to map between languages and the different string files you have:
-
-```json
-{
-    "languages": {
-        "en-gb": "strings.en-gb.json",
-        "en-us": "strings.en-us.json"
-    }
-}
-```
-
-Compile these strings to an elm module using the `elm-i18n-from-json` script. Pass the config file
-as the first argument to the script:
+Compile these strings to an elm module using the `elm-i18n-from-json` script. For example, if the
+json above was saved into a file called `strings.json` then you would run:
 
 ```bash
-node elm-i18n-from-json generate elm-message-format.json Translations.elm
+node elm-i18n-from-json generate strings.json Translations.elm
 ```
 
 Which produces a file with this format:
