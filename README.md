@@ -17,10 +17,8 @@ I am not an experience elm developer. Perhaps there is a much better solution to
 
 ## Status
 
-It seems to work but I'm no expert so tread carefully. I'd love feedback and guidance though.
-
-- Currently each message is individually compiled by the `messageformat` package every time you use
-  it. It would be worth caching these in the javascript of the native module.
+I am using this approach at work but this project is still a bit rough. If something doesn't work as
+expected please get in touch.
 
 
 ## Workflow
@@ -52,6 +50,9 @@ Which produces a file with this format:
 ```elm
 module Translation exposing (..)
 
+import Json.Decode.Pipeline exposing (decode, optional, optionalAt)
+import Json.Decode exposing (decodeValue, string)
+import Html exposing (Html, text)
 import MessageFormat
 
 
@@ -62,57 +63,78 @@ type Translation
     | TrWithArgsSimple { wow : String }
 
 
-type Language
-    = En_gb
-    | En_us
-
-
-languageCode : Language -> String
-languageCode language =
-    case language of
-        En_gb ->
-            "en-gb"
-
-        En_us ->
-            "en-us"
+type alias Language =
+    { code__ : String
+    , textSubText : String
+    , textAnotherSubText : String
+    , topLevelString : String
+    , withArgsSimple : String
+    }
 
 
 translate : Language -> Translation -> String
-translate language token =
-    case language of
-        En_gb ->
-            case token of
-                TrTextSubText ->
-                    MessageFormat.format "en-gb" "Hello, World!"
+translate strings token =
+    case token of
+        TrTextSubText ->
+            MessageFormat.format strings.code__ strings.textSubText
 
-                TrTextAnotherSubText ->
-                    MessageFormat.format "en-gb" "Goodbye, World!"
+        TrTextAnotherSubText ->
+            MessageFormat.format strings.code__ strings.textAnotherSubText
 
-                TrTopLevelString ->
-                    MessageFormat.format "en-gb" "This string is top level"
+        TrTopLevelString ->
+            MessageFormat.format strings.code__ strings.topLevelString
 
-                TrWithArgsSimple args ->
-                    MessageFormat.formatWithArgs "en-gb" "So {wow}" args
+        TrWithArgsSimple args ->
+            MessageFormat.formatWithArgs strings.code__ strings.withArgsSimple args
 
-        En_us ->
-            case token of
-                TrTextSubText ->
-                    MessageFormat.format "en-us" "Hello, World!"
 
-                TrTextAnotherSubText ->
-                    MessageFormat.format "en-us" "Goodbye, World!"
+decodeLanguage : Json.Decode.Value -> Language
+decodeLanguage json =
+    decodeValue languageDecoder json |> Result.withDefault defaultLanguage
 
-                TrTopLevelString ->
-                    MessageFormat.format "en-us" "This string is top level"
 
-                TrWithArgsSimple args ->
-                    MessageFormat.formatWithArgs "en-us" "So {wow}" args
+languageDecoder : Json.Decode.Decoder Language
+languageDecoder =
+    decode Language
+        |> optional "code__" string ""
+        |> optionalAt ["text", "subText"] string "text.subText"
+        |> optionalAt ["text", "anotherSubText"] string "text.anotherSubText"
+        |> optional "topLevelString" string "topLevelString"
+        |> optionalAt ["withArgs", "simple"] string "withArgs.simple"
+
+
+languageLookup =
+    { textSubText = TrTextSubText
+    , textAnotherSubText = TrTextAnotherSubText
+    , topLevelString = TrTopLevelString
+    , withArgsSimple = TrWithArgsSimple
+    }
+
+
+defaultLanguage : Language
+defaultLanguage =
+    { code__ = ""
+    , textSubText = "text.subText"
+    , textAnotherSubText = "text.anotherSubText"
+    , topLevelString = "topLevelString"
+    , withArgsSimple = "withArgs.simple"
+    }
+
+
+trText : Language -> Translation -> Html msg
+trText strings slug =
+    text (translate strings slug)
 ```
 
 This relies on the `MessageFormat` module that relies on `Native.MessageFormat` which uses the npm
 `messageformat` package to process the translations.
 
-Import & use your translations with all the support of the type system:
+You can use the `languageDecode` above to decode the json language data that should be passed into
+your Elm app at run this. This allows your server to decide which language the current user is
+expecting and to send just that language.
+
+Once the language json has been decoded and stored in your model as `model.language` than you can
+import & use your translations with all the support of the type system:
 
 ```elm
 module Main exposing (main)
@@ -127,7 +149,7 @@ main =
             [ text "Translating 'WithArgsSimple' string" ]
         , div
             []
-            [ text (translate En_gb (TrWithArgsSimple "much wow")) ]
+            [ text <| translate model.language (TrWithArgsSimple "much wow")) ]
         ]
 ```
 
